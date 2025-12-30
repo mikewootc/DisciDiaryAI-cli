@@ -1,0 +1,29 @@
+{
+    "model_config": [
+        {
+            "name": "deepseek",
+            "model_name": "deepseek-chat",
+            "model_api_url": "https://api.deepseek.com",
+            "api_key_name": "DEEPSEEK_API_KEY"
+        },
+        {
+            "name": "ollama",
+            "model_name": "qwen3:8b",
+            "model_api_url": "http://localhost:11434",
+            "api_key_name": "OLLAMA_API_KEY"
+        },
+        {
+            "name": "qwen",
+            "model_name": "qwen3-235b-a22b-thinking-2507",
+            "model_api_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            "api_key_name": "QWEN_API_KEY"
+        }
+    ],
+    "model_selection": {
+        "default_model": "qwen"
+    },
+
+    "year": 2025,
+    "plan_file": "~/diary/2025_plan.md",
+    "diary_file": "~/diary/2025_diary.md"
+}
