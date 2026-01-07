@@ -120,6 +120,7 @@ lst_tools = [
     tools.get_year_diary,
     tools.calc_sum_from_expression,
     tools.get_plan,
+    tools.email_receive_diary_pop,
 ]
 
 # Create system prompt for the agent
