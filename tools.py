@@ -5,6 +5,8 @@ import imaplib
 import poplib
 import email
 from email.header import decode_header
+from email.mime.text import MIMEText
+import smtplib
 from dotenv import load_dotenv
 from langchain.tools import tool
 from langchain.tools import tool, ToolRuntime
@@ -14,10 +16,12 @@ from utils import logger
 
 load_dotenv()
 
-EMAIL_SERVER_SEND = os.getenv('EMAIL_SERVER_SEND')
-EMAIL_SERVER_RECV = os.getenv('EMAIL_SERVER_RECV')
+
+EMAIL_SMTP_SERVER = os.getenv('EMAIL_SMTP_SERVER')
+EMAIL_SMTP_PORT = int(os.getenv('EMAIL_SMTP_PORT'))
+EMAIL_RECV_SERVER = os.getenv('EMAIL_RECV_SERVER')
 EMAIL_ACCOUNT=os.getenv('EMAIL_ACCOUNT')
-EMAIL_PASSWORD=os.getenv('EMAIL_PASSWORD')
+# EMAIL_PASSWORD=os.getenv('EMAIL_PASSWORD')
 EMAIL_RECEIVE_KEY = os.getenv('EMAIL_RECEIVE_KEY')
 EMAIL_ACCOUNT_PEER=os.getenv('EMAIL_ACCOUNT_PEER')
 
@@ -329,182 +333,190 @@ def get_plan(runtime: ToolRuntime, date: str) -> str:
     # 返回计划内容
     return plan_content
 
-def email_receive_diary(runtime: ToolRuntime) -> str:
-    """接收指定邮箱的邮件, 从邮箱中提取日记片段. 并返回日记片段内容.
-        1. 从 cache 文件中上次接收邮件的时间戳开始, 接收所有未读邮件.
-        2. 从邮件内容中提取日记片段. 并将新时间戳记录到 cache 中.
-        3. 返回提取到的日记片段.
+#def email_receive_diary(runtime: ToolRuntime) -> str:
+#    """接收指定邮箱的邮件, 从邮箱中提取日记片段. 并返回日记片段内容.
+#        1. 从 cache 文件中上次接收邮件的时间戳开始, 接收所有未读邮件.
+#        2. 从邮件内容中提取日记片段. 并将新时间戳记录到 cache 中.
+#        3. 返回提取到的日记片段.
+#
+#    Args:
+#        runtime: The runtime object.
+#    """
+#    try:
+#        # 1. 获取缓存文件中的上次接收时间戳
+#        cache_file_path = os.path.join(".", ".aid", "cache", "cache.json")
+#        cache_data = {}
+#        last_receive_time = None
+#        
+#        # 确保缓存目录存在
+#        cache_dir = os.path.dirname(cache_file_path)
+#        os.makedirs(cache_dir, exist_ok=True)
+#        
+#        # 读取缓存文件
+#        if os.path.exists(cache_file_path):
+#            try:
+#                with open(cache_file_path, "r", encoding="utf-8") as f:
+#                    cache_data = json.load(f)
+#                last_receive_time_str = cache_data.get("last_email_receive_time")
+#                if last_receive_time_str:
+#                    try:
+#                        last_receive_time = datetime.datetime.strptime(last_receive_time_str, "%Y-%m-%d %H:%M:%S")
+#                    except ValueError:
+#                        logger.error(f"##### Invalid date format in cache: {last_receive_time_str}")
+#                        last_receive_time = None
+#            except json.JSONDecodeError:
+#                logger.error(f"##### Failed to decode cache file: {cache_file_path}")
+#                cache_data = {}
+#                last_receive_time = None
+#        
+#        # 2. 连接到邮件服务器
+#        # 添加缺失的命令
+#        imaplib.Commands['ID'] = ('AUTH')
+#        imap = imaplib.IMAP4_SSL(EMAIL_RECV_SERVER)
+#        logger.debug(f"##### Connected to IMAP server: {EMAIL_RECV_SERVER}")
+#        
+#        # 登录邮箱
+#        login_status, login_data = imap.login(EMAIL_ACCOUNT, EMAIL_RECEIVE_KEY)
+#        if login_status != 'OK':
+#            login_error = login_data[0].decode('utf-8') if login_data else "未知错误"
+#            logger.error(f"##### Failed to login: {login_error}")
+#            
+#            # 针对126.com/163.com的安全限制错误提供指导
+#            if any(keyword in login_error for keyword in ["Unsafe Login", "安全登录", "授权"]):
+#                return f"错误: 邮箱登录失败. 服务器信息: {login_error}\n\n" \
+#                       f"解决方案: 1. 登录网页版邮箱，检查安全通知并授权登录\n" \
+#                       f"          2. 启用IMAP/SMTP服务：设置 → POP3/SMTP/IMAP → 开启IMAP服务\n" \
+#                       f"          3. 生成授权码：使用授权码代替登录密码\n" \
+#                       f"          4. 联系邮箱客服获取帮助"
+#            
+#            return f"错误: 邮箱登录失败. 服务器信息: {login_error}"
+#        logger.debug(f"##### Logged in to email account: {EMAIL_ACCOUNT}")
+#        
+#        # 选择收件箱
+#        select_status, select_data = imap.select("inbox")
+#        if select_status != 'OK':
+#            error_msg = select_data[0].decode('utf-8') if select_data else "未知错误"
+#            logger.error(f"##### Failed to select inbox: {error_msg}")
+#            imap.logout()
+#            
+#            # 针对126.com/163.com的安全限制错误提供更详细的指导
+#            # 匹配包含"Unsafe Login"或"安全登录"的错误信息
+#            if any(keyword in error_msg for keyword in ["Unsafe Login", "安全登录", "授权失败"]):
+#                detailed_msg = f"错误: 邮箱服务器安全限制. 服务器信息: {error_msg}\n\n"
+#                detailed_msg += "解决方案: 请按照以下步骤操作:\n"
+#                detailed_msg += "1. 登录网页版邮箱，检查安全通知并授权本次登录\n"
+#                detailed_msg += "2. 启用IMAP/SMTP服务：设置 → POP3/SMTP/IMAP → 开启IMAP服务\n"
+#                detailed_msg += "3. 生成授权码：在邮箱设置中生成专用授权码，使用授权码代替密码\n"
+#                detailed_msg += "4. 如仍有问题，请联系邮箱客服获取帮助\n"
+#                return detailed_msg
+#            
+#            return f"错误: 选择收件箱失败. 服务器信息: {error_msg}"
+#        logger.debug(f"##### Selected inbox with {select_data[0]} messages")
+#        
+#        # 3. 搜索未读邮件
+#        status, messages = imap.search(None, "UNSEEN")
+#        if status != 'OK':
+#            logger.error(f"##### Failed to search messages: {messages}")
+#            imap.close()
+#            imap.logout()
+#            return "错误: 搜索邮件失败."
+#        message_ids = messages[0].split()
+#        logger.debug(f"##### Found {len(message_ids)} unread messages")
+#        
+#        diary_fragments = []
+#        latest_receive_time = datetime.datetime.now()
+#        
+#        # 4. 遍历所有未读邮件
+#        for msg_id in message_ids:
+#            # 获取邮件内容
+#            status, msg_data = imap.fetch(msg_id, "(RFC822)")
+#            
+#            # 解析邮件
+#            for response_part in msg_data:
+#                if isinstance(response_part, tuple):
+#                    msg = email.message_from_bytes(response_part[1])
+#                    
+#                    # 获取发件人信息
+#                    from_ = msg["From"]
+#                    sender_email = from_.split("<")[-1].rstrip(">")
+#                    
+#                    # 只处理来自指定发件人的邮件
+#                    if sender_email != EMAIL_ACCOUNT_PEER:
+#                        continue
+#                    
+#                    # 获取邮件主题
+#                    subject, encoding = decode_header(msg["Subject"])[0]
+#                    if isinstance(subject, bytes):
+#                        subject = subject.decode(encoding if encoding else "utf-8")
+#                    
+#                    # 获取邮件正文
+#            body = ""
+#            if msg.is_multipart():
+#                for part in msg.walk():
+#                    content_type = part.get_content_type()
+#                    content_disposition = str(part.get("Content-Disposition"))
+#                    
+#                    try:
+#                        if content_type == "text/plain" and "attachment" not in content_disposition:
+#                            payload = part.get_payload(decode=True)
+#                            # 尝试多种编码解码
+#                            encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1']
+#                            for encoding in encodings:
+#                                try:
+#                                    body = payload.decode(encoding)
+#                                    break
+#                                except UnicodeDecodeError:
+#                                    continue
+#                            else:
+#                                # 如果所有编码都失败，使用latin-1作为兜底
+#                                body = payload.decode('latin-1', errors='replace')
+#                            break
+#                    except Exception as e:
+#                        logger.error(f"##### Failed to decode email body: {e}")
+#            else:
+#                content_type = msg.get_content_type()
+#                if content_type == "text/plain":
+#                    try:
+#                        payload = msg.get_payload(decode=True)
+#                        # 尝试多种编码解码
+#                        encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1']
+#                        for encoding in encodings:
+#                            try:
+#                                body = payload.decode(encoding)
+#                                break
+#                            except UnicodeDecodeError:
+#                                continue
+#                        else:
+#                            # 如果所有编码都失败，使用latin-1作为兜底
+#                            body = payload.decode('latin-1', errors='replace')
+#                    except Exception as e:
+#                        logger.error(f"##### Failed to decode email body: {e}")
+#                    
+#                    # 将邮件正文作为日记片段
+#                    if body:
+#                        print(f"##### Received email from {sender_email} with subject: {subject}")
+#                        diary_fragments.append(body)
+#        
+#        # 5. 更新缓存文件中的时间戳
+#        cache_data["last_email_receive_time"] = latest_receive_time.strftime("%Y-%m-%d %H:%M:%S")
+#        try:
+#            with open(cache_file_path, "w", encoding="utf-8") as f:
+#                json.dump(cache_data, f, ensure_ascii=False, indent=2)
+#            logger.debug(f"##### Email receive time updated in cache")
+#        except Exception as e:
+#            logger.error(f"##### Failed to save cache: {e}")
+#        
+#        # 6. 关闭邮件连接
+#        imap.close()
+#        imap.logout()
+#        
+#        # 返回提取到的日记片段
+#        return "\n".join(diary_fragments) if diary_fragments else ""
+#        
+#    except Exception as e:
+#        logger.error(f"##### Failed to receive email: {e}")
+#        return "错误: 接收邮件失败."
 
-    Args:
-        runtime: The runtime object.
-    """
-    try:
-        # 1. 获取缓存文件中的上次接收时间戳
-        cache_file_path = os.path.join(".", ".aid", "cache", "cache.json")
-        cache_data = {}
-        last_receive_time = None
-        
-        # 确保缓存目录存在
-        cache_dir = os.path.dirname(cache_file_path)
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        # 读取缓存文件
-        if os.path.exists(cache_file_path):
-            try:
-                with open(cache_file_path, "r", encoding="utf-8") as f:
-                    cache_data = json.load(f)
-                last_receive_time = cache_data.get("last_email_receive_time")
-            except json.JSONDecodeError:
-                logger.error(f"##### Failed to decode cache file: {cache_file_path}")
-                cache_data = {}
-        
-        # 2. 连接到邮件服务器
-        # 添加缺失的命令
-        imaplib.Commands['ID'] = ('AUTH')
-        imap = imaplib.IMAP4_SSL(EMAIL_SERVER_RECV)
-        logger.debug(f"##### Connected to IMAP server: {EMAIL_SERVER_RECV}")
-        
-        # 登录邮箱
-        login_status, login_data = imap.login(EMAIL_ACCOUNT, EMAIL_RECEIVE_KEY)
-        if login_status != 'OK':
-            login_error = login_data[0].decode('utf-8') if login_data else "未知错误"
-            logger.error(f"##### Failed to login: {login_error}")
-            
-            # 针对126.com/163.com的安全限制错误提供指导
-            if any(keyword in login_error for keyword in ["Unsafe Login", "安全登录", "授权"]):
-                return f"错误: 邮箱登录失败. 服务器信息: {login_error}\n\n" \
-                       f"解决方案: 1. 登录网页版邮箱，检查安全通知并授权登录\n" \
-                       f"          2. 启用IMAP/SMTP服务：设置 → POP3/SMTP/IMAP → 开启IMAP服务\n" \
-                       f"          3. 生成授权码：使用授权码代替登录密码\n" \
-                       f"          4. 联系邮箱客服获取帮助"
-            
-            return f"错误: 邮箱登录失败. 服务器信息: {login_error}"
-        logger.debug(f"##### Logged in to email account: {EMAIL_ACCOUNT}")
-        
-        # 选择收件箱
-        select_status, select_data = imap.select("inbox")
-        if select_status != 'OK':
-            error_msg = select_data[0].decode('utf-8') if select_data else "未知错误"
-            logger.error(f"##### Failed to select inbox: {error_msg}")
-            imap.logout()
-            
-            # 针对126.com/163.com的安全限制错误提供更详细的指导
-            # 匹配包含"Unsafe Login"或"安全登录"的错误信息
-            if any(keyword in error_msg for keyword in ["Unsafe Login", "安全登录", "授权失败"]):
-                detailed_msg = f"错误: 邮箱服务器安全限制. 服务器信息: {error_msg}\n\n"
-                detailed_msg += "解决方案: 请按照以下步骤操作:\n"
-                detailed_msg += "1. 登录网页版邮箱，检查安全通知并授权本次登录\n"
-                detailed_msg += "2. 启用IMAP/SMTP服务：设置 → POP3/SMTP/IMAP → 开启IMAP服务\n"
-                detailed_msg += "3. 生成授权码：在邮箱设置中生成专用授权码，使用授权码代替密码\n"
-                detailed_msg += "4. 如仍有问题，请联系邮箱客服获取帮助\n"
-                return detailed_msg
-            
-            return f"错误: 选择收件箱失败. 服务器信息: {error_msg}"
-        logger.debug(f"##### Selected inbox with {select_data[0]} messages")
-        
-        # 3. 搜索未读邮件
-        status, messages = imap.search(None, "UNSEEN")
-        if status != 'OK':
-            logger.error(f"##### Failed to search messages: {messages}")
-            imap.close()
-            imap.logout()
-            return "错误: 搜索邮件失败."
-        message_ids = messages[0].split()
-        logger.debug(f"##### Found {len(message_ids)} unread messages")
-        
-        diary_fragments = []
-        latest_receive_time = datetime.datetime.now()
-        
-        # 4. 遍历所有未读邮件
-        for msg_id in message_ids:
-            # 获取邮件内容
-            status, msg_data = imap.fetch(msg_id, "(RFC822)")
-            
-            # 解析邮件
-            for response_part in msg_data:
-                if isinstance(response_part, tuple):
-                    msg = email.message_from_bytes(response_part[1])
-                    
-                    # 获取发件人信息
-                    from_ = msg["From"]
-                    sender_email = from_.split("<")[-1].rstrip(">")
-                    
-                    # 只处理来自指定发件人的邮件
-                    if sender_email != EMAIL_ACCOUNT_PEER:
-                        continue
-                    
-                    # 获取邮件主题
-                    subject, encoding = decode_header(msg["Subject"])[0]
-                    if isinstance(subject, bytes):
-                        subject = subject.decode(encoding if encoding else "utf-8")
-                    
-                    # 获取邮件正文
-            body = ""
-            if msg.is_multipart():
-                for part in msg.walk():
-                    content_type = part.get_content_type()
-                    content_disposition = str(part.get("Content-Disposition"))
-                    
-                    try:
-                        if content_type == "text/plain" and "attachment" not in content_disposition:
-                            payload = part.get_payload(decode=True)
-                            # 尝试多种编码解码
-                            encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1']
-                            for encoding in encodings:
-                                try:
-                                    body = payload.decode(encoding)
-                                    break
-                                except UnicodeDecodeError:
-                                    continue
-                            else:
-                                # 如果所有编码都失败，使用latin-1作为兜底
-                                body = payload.decode('latin-1', errors='replace')
-                            break
-                    except Exception as e:
-                        logger.error(f"##### Failed to decode email body: {e}")
-            else:
-                content_type = msg.get_content_type()
-                if content_type == "text/plain":
-                    try:
-                        payload = msg.get_payload(decode=True)
-                        # 尝试多种编码解码
-                        encodings = ['utf-8', 'gbk', 'gb2312', 'latin-1']
-                        for encoding in encodings:
-                            try:
-                                body = payload.decode(encoding)
-                                break
-                            except UnicodeDecodeError:
-                                continue
-                        else:
-                            # 如果所有编码都失败，使用latin-1作为兜底
-                            body = payload.decode('latin-1', errors='replace')
-                    except Exception as e:
-                        logger.error(f"##### Failed to decode email body: {e}")
-                    
-                    # 将邮件正文作为日记片段
-                    if body:
-                        print(f"##### Received email from {sender_email} with subject: {subject}")
-                        diary_fragments.append(body)
-        
-        # 5. 更新缓存文件中的时间戳
-        cache_data["last_email_receive_time"] = latest_receive_time.strftime("%Y-%m-%d %H:%M:%S")
-        try:
-            with open(cache_file_path, "w", encoding="utf-8") as f:
-                json.dump(cache_data, f, ensure_ascii=False, indent=2)
-            logger.debug(f"##### Email receive time updated in cache")
-        except Exception as e:
-            logger.error(f"##### Failed to save cache: {e}")
-        
-        # 6. 关闭邮件连接
-        imap.close()
-        imap.logout()
-        
-        # 返回提取到的日记片段
-        return "\n".join(diary_fragments) if diary_fragments else ""
-        
-    except Exception as e:
-        logger.error(f"##### Failed to receive email: {e}")
-        return "错误: 接收邮件失败."
 
 def email_receive_diary_pop(runtime: ToolRuntime) -> str:
     """
@@ -531,14 +543,21 @@ def email_receive_diary_pop(runtime: ToolRuntime) -> str:
             try:
                 with open(cache_file_path, "r", encoding="utf-8") as f:
                     cache_data = json.load(f)
-                last_receive_time = cache_data.get("last_email_receive_time")
+                last_receive_time_str = cache_data.get("last_email_receive_time")
+                if last_receive_time_str:
+                    try:
+                        last_receive_time = datetime.datetime.strptime(last_receive_time_str, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        logger.error(f"##### Invalid date format in cache: {last_receive_time_str}")
+                        last_receive_time = None
             except json.JSONDecodeError:
                 logger.error(f"##### Failed to decode cache file: {cache_file_path}")
                 cache_data = {}
+                last_receive_time = None
         
         # 2. 连接到POP3服务器
-        pop = poplib.POP3_SSL(EMAIL_SERVER_RECV)
-        logger.debug(f"##### Connected to POP3 server: {EMAIL_SERVER_RECV}")
+        pop = poplib.POP3_SSL(EMAIL_RECV_SERVER)
+        logger.debug(f"##### Connected to POP3 server: {EMAIL_RECV_SERVER}")
         
         # 登录邮箱
         try:
@@ -582,11 +601,20 @@ def email_receive_diary_pop(runtime: ToolRuntime) -> str:
             # 只处理来自指定发件人的邮件
             if sender_email != EMAIL_ACCOUNT_PEER:
                 continue
-            
+
             # 获取邮件主题
             subject, encoding = decode_header(msg["Subject"])[0]
             if isinstance(subject, bytes):
                 subject = subject.decode(encoding if encoding else "utf-8")
+
+            # 判断时间是否比上次接收时间新
+            date_str = msg["Date"]
+            date = email.utils.parsedate_to_datetime(date_str)
+            # 移除时区信息，以便与缓存中的时间戳比较
+            if date.tzinfo is not None:
+                date = date.replace(tzinfo=None)
+            if last_receive_time and date <= last_receive_time:
+                continue
             
             # 获取邮件正文
             body = ""
@@ -649,8 +677,51 @@ def email_receive_diary_pop(runtime: ToolRuntime) -> str:
         pop.quit()
         
         # 返回提取到的日记片段
+        if not diary_fragments:
+            logger.debug("##### No new emails received.")
+            return "没有新的邮件."
         return "\n".join(diary_fragments) if diary_fragments else ""
         
     except Exception as e:
         logger.error(f"##### Failed to receive email via POP3: {e}")
         return "错误: 接收邮件失败."
+
+
+def email_send_notification(runtime: ToolRuntime, subject: str, body: str) -> str:
+    """发送指定邮箱的通知邮件.
+
+    Args:
+        runtime: The runtime object.
+        subject: The subject of the email.
+        body: The body of the email.
+    """
+    try:
+        # 1. 配置SMTP服务器
+        smtp_server = EMAIL_SMTP_SERVER
+        smtp_port = EMAIL_SMTP_PORT
+        smtp_username = EMAIL_ACCOUNT
+        # smtp_username = 'mikestock@126.com'
+        smtp_password = EMAIL_RECEIVE_KEY
+
+        # 2. 创建SMTP连接
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            logger.debug(f"##### Log in ...")
+            server.login(smtp_username, smtp_password)
+            logger.debug(f"##### Logged in OK")
+
+            # 3. 构造邮件
+            msg = MIMEText(body, 'plain', 'utf-8')
+            msg['Subject'] = subject
+            msg['From'] = smtp_username
+            msg['To'] = EMAIL_ACCOUNT_PEER
+
+            # 4. 发送邮件
+            str_msg = msg.as_string()
+            logger.debug(f"##### Email content: {str_msg}")
+            server.sendmail(smtp_username, EMAIL_ACCOUNT_PEER, str_msg)
+            logger.debug(f"##### Notification email sent to {EMAIL_ACCOUNT_PEER} with subject: {subject}")
+            return "通知邮件发送成功."
+    except Exception as e:
+        logger.error(f"##### Failed to send notification email: {e}")
+        return "错误: 发送通知邮件失败."

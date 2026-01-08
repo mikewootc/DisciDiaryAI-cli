@@ -121,6 +121,7 @@ lst_tools = [
     tools.calc_sum_from_expression,
     tools.get_plan,
     tools.email_receive_diary_pop,
+    tools.email_send_notification,
 ]
 
 # Create system prompt for the agent
