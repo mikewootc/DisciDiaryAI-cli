@@ -700,12 +700,12 @@ def email_send_notification(runtime: ToolRuntime, subject: str, body: str) -> st
         smtp_server = EMAIL_SMTP_SERVER
         smtp_port = EMAIL_SMTP_PORT
         smtp_username = EMAIL_ACCOUNT
-        # smtp_username = 'mikestock@126.com'
         smtp_password = EMAIL_RECEIVE_KEY
 
+        logger.debug(f"##### send notification email. enter.")
         # 2. 创建SMTP连接
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
+        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+            # server.starttls()
             logger.debug(f"##### Log in ...")
             server.login(smtp_username, smtp_password)
             logger.debug(f"##### Logged in OK")
