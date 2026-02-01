@@ -5,7 +5,6 @@ import argparse
 import datetime, os, json
 from typing import Any
 from dotenv import load_dotenv
-from langchain_deepseek import ChatDeepSeek
 from langchain_openai import ChatOpenAI
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import ChatPromptTemplate
@@ -24,7 +23,7 @@ class CustomState(AgentState):
     diary_file_path: str = ""
     plan_file_path: str = ""
     lst_diary_lines: list[str] = []
-    llm: ChatDeepSeek | ChatOpenAI | OllamaLLM = None
+    llm: ChatOpenAI | OllamaLLM = None
 
 class CustomMiddleware(AgentMiddleware):
     state_schema = CustomState
@@ -37,76 +36,93 @@ logger.debug("start")
 
 load_dotenv()
 
-# 加载 aid_config.json 文件
+# 获取脚本所在目录
 script_dir = os.path.dirname(os.path.abspath(__file__))
-config_path = os.path.join(script_dir, 'aid_config.json')
-with open(config_path, 'r', encoding='utf-8') as f:
-    config = json.load(f)
 
-diary_file_path = config["diary_file"]
-plan_file_path = config["plan_file"]
+config = None
+diary_file_path = None
+plan_file_path = None
+models_config = None
+custom_model = None
+llm = None
 
 
+
+# 加载配置文件
+def init_config():
+    """加载配置文件并返回必要的配置变量"""
+    # 加载 aid_config.json 文件
+    config_path = os.path.join(script_dir, 'aid_config.json')
+    with open(config_path, 'r', encoding='utf-8') as f:
+        config = json.load(f)
+    
+    diary_file_path = config["diary_file"]
+    plan_file_path = config["plan_file"]
+    
+    # 加载 models.json 文件获取模型配置
+    models_config_path = os.path.join(script_dir, 'models.json')
+    with open(models_config_path, 'r', encoding='utf-8') as f:
+        models_config = json.load(f)
+    
+    # 读取自定义模型配置
+    custom_model = config.get("custom_model", None)
+    logger.trace(f"custom_model: {custom_model}")
+    
+    return config, diary_file_path, plan_file_path, models_config, custom_model
 
 # ------------------------------------------------------------------------------
 # models 
 # ------------------------------------------------------------------------------
-
-# 从配置文件中获取模型配置, 并创建模型
-model_config = config["model_config"]
-logger.debug(f"model_config: {model_config}")
-default_model_name = config["model_selection"]["default_model"]
-
-llms = {}
-
-for model in model_config:
-    name = model["name"]
-    model_name = model["model_name"]
-    model_api_url = model["model_api_url"]
-    model_api_key_name = model["api_key_name"]
-    model_api_key = os.getenv(model_api_key_name)
+def init_model(models_config, custom_model):
+    """初始化模型并返回 llm 变量"""
+    # 从配置文件中获取模型配置, 并创建模型
+    model_config = models_config["model_config"]
+    logger.trace(f"model_config: {model_config}")
     
-    logger.debug(f"name: {name}, model_name: {model_name}, model_api_url: {model_api_url}, model_api_key_name: {model_api_key_name}")
+    # 合并自定义模型配置到预定义模型配置
+    merged_model_config = {}
+    for model in model_config:
+        merged_model_config[model["selection"]] = model
+    
+    # 如果有自定义模型，覆盖预定义模型配置
+    if custom_model:
+        custom_model_name = custom_model["selection"]
+        logger.debug(f"Merging custom model: {custom_model_name}")
+        merged_model_config[custom_model_name] = custom_model
 
-    if name == "deepseek":
-        api_key_deepseek = model_api_key
-        llms[name] = ChatDeepSeek(
-            # model="deepseek-chat",
-            model=model_name,
-            api_key=api_key_deepseek,
-            streaming=True,  # 启用流式输出
-        )
-    elif name == "ollama":
-        llms[name] = OllamaLLM(
+    logger.trace(f"merged_model_config: {merged_model_config}")
+
+    model_selection = config["model_selection"]
+    selected_model = merged_model_config.get(model_selection, None)
+    if selected_model == None:
+        raise ValueError(f"Model selection {model_selection} not found.")
+    
+    selection = selected_model["selection"]
+    model_name = selected_model["model_name"]
+    model_api_url = selected_model["model_api_url"]
+    model_api_key = os.getenv("MODEL_API_KEY")
+        
+    logger.debug(f"selection: {selection}, model_name: {model_name}, model_api_url: {model_api_url}")
+
+    if selection == "ollama":
+        llm = OllamaLLM(
             model=model_name,
             # base_url=model_api_url,
             # api_key=model_api_key,
         )
-    elif name == "qwen":
-        # TODO: change to qwen specific creation
-        llms[name] = ChatOpenAI(
-            model_name=model_name,
-            api_key=model_api_key,
-            base_url=model_api_url,
-        )
     else:
-        llms[name] = name
-        llms[name] = ChatOpenAI(
+        llm = ChatOpenAI(
             model_name=model_name,
             api_key=model_api_key,
             base_url=model_api_url,
         )
-    logger.trace(f"    model:{name}: {llms[name]}")
+    logger.trace(f"    model:{selection}: {llm}")
+    
+    if llm == None:
+        raise ValueError("No valid model.")
+    
+    return llm
 
-if len(llms) == 0:
-    raise ValueError("No valid model configuration found in aid_config.json")
-
-default_llm = llms[default_model_name]
-logger.debug(f"default_llm: {default_llm}")
-
-# 从配置文件中读取模型选择
-model_selection = config["model_selection"]
-logger.debug(f"model_selection: {model_selection}")
 
 # ------------------------------------------------------------------------------
 # tools 
@@ -235,8 +251,12 @@ if __name__ == "__main__":
         parser.print_help()
         exit(1)
 
+    # 初始化配置和模型
+    config, diary_file_path, plan_file_path, models_config, custom_model = init_config()
+    llm = init_model(models_config, custom_model)
+
     # Create agent instance
-    agent = build_agent(default_llm, lst_tools)
+    agent = build_agent(llm, lst_tools)
     logger.debug(f"Created agent: {agent}")
 
     user_input = ""
@@ -288,7 +308,7 @@ if __name__ == "__main__":
                 "diary_file_path": diary_file_path,
                 "plan_file_path": plan_file_path,
                 # "llm": default_llm,
-                "llm": llms["deepseek"],
+                "llm": llm,
             }, {
                 "configurable": {"thread_id": "1"}
             },

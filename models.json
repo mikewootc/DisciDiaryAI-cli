@@ -1,0 +1,14 @@
+{
+    "model_config": [
+        {
+            "selection": "deepseek",
+            "model_name": "deepseek-chat",
+            "model_api_url": "https://api.deepseek.com"
+        },
+        {
+            "selection": "qwen",
+            "model_name": "qwen3-235b-a22b-thinking-2507",
+            "model_api_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        }
+    ]
+}
