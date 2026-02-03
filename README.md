@@ -66,7 +66,7 @@ A self-discipline diary cli assistent tool powered by AI llm.
 
     ```bash
     # 在工作区目录下运行
-    python aid.py OPTIONS  # 这里 OPTIONS 是你自己的命令行参数. 详情请参考下面的表格.
+    python 程序路径/aid.py OPTIONS  # 这里 OPTIONS 是你自己的命令行参数. 详情请参考下面的表格.
     ```
 
 ### 命令行参数
