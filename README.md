@@ -11,7 +11,7 @@ A self-discipline diary cli assistent tool powered by AI llm.
 
 ## 建立自己的日记工作区并配置
 
-1. 在想要建立工作区的目录下, 执行:
+1. 在想要建立日记工作区的目录下, 执行:
 
     ```bash
     python 程序路径/aid.py init
@@ -35,7 +35,7 @@ A self-discipline diary cli assistent tool powered by AI llm.
 
 ## 编写计划与日记
 
-1. 编辑上面创建的工作区中的: 年份_diary.md，将其中的内容替换为你自己的内容. 但是格式要满足:
+1. 编辑上面创建的日记工作区中的: 年份_diary.md，将其中的内容替换为你自己的内容. 但是格式要满足:
 
     ```markdown
     ## 第04周：  ← 这一行只是为了人类的可读性，并非必须看个人喜好是否保留.
@@ -65,7 +65,7 @@ A self-discipline diary cli assistent tool powered by AI llm.
 2. 运行 cli 工具.
 
     ```bash
-    # 在工作区目录下运行
+    # 在日记工作区目录下运行
     python 程序路径/aid.py OPTIONS  # 这里 OPTIONS 是你自己的命令行参数. 详情请参考下面的表格.
     ```
 
