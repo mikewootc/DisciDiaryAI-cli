@@ -34,7 +34,8 @@ class CustomMiddleware(AgentMiddleware):
 
 logger.debug("start")
 
-load_dotenv()
+load_dotenv(".env")
+print(f"MODEL_API_KEY222: {os.getenv('MODEL_API_KEY')}")
 
 # 获取脚本所在目录
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -52,7 +53,11 @@ llm = None
 def init_config():
     """加载配置文件并返回必要的配置变量"""
     # 加载 aid_config.json 文件
-    config_path = os.path.join(script_dir, 'aid_config.json')
+    # 先在当前目录查找
+    config_path = os.path.join(os.getcwd(), 'aid_config.json')
+    # 如果当前目录不存在，再到脚本所在目录查找
+    if not os.path.exists(config_path):
+        config_path = os.path.join(script_dir, 'aid_config.json')
     with open(config_path, 'r', encoding='utf-8') as f:
         config = json.load(f)
     
@@ -229,6 +234,7 @@ if __name__ == "__main__":
     #     -i, --interactive: interactive mode
 
     parser = argparse.ArgumentParser(description="Aid - AI Assistant for Diary Management")
+    parser.add_argument("command", nargs='?', default=None, help="Command (init or run)")
     parser.add_argument("-s", "--shell", action="store_true", help="show in bash shell")
     parser.add_argument("-V", "--version", action="version", version="%(prog)s 1.0")
     parser.add_argument("-v", "--verbose", help="verbose mode")
@@ -236,20 +242,28 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--interactive", action="store_true", help="interactive mode")
 
     args = parser.parse_args()
-    mode = None
-    in_shell = args.shell
-    if args.verbose:
-        print(f"verbose: {args.verbose}")
-        logger.set_level(int(args.verbose))
-
-    if args.user_prompt:
-        mode = "once"
-    elif args.interactive:
-        mode = "interactive"
-        print("请输入您的问题（输入'q'结束）：")
+    
+    # 处理init命令
+    if args.command == "init":
+        import aid_init
+        aid_init.init_project()
+        exit(0)
     else:
-        parser.print_help()
-        exit(1)
+        # 原有逻辑
+        mode = None
+        in_shell = args.shell
+        if args.verbose:
+            print(f"verbose: {args.verbose}")
+            logger.set_level(int(args.verbose))
+
+        if args.user_prompt:
+            mode = "once"
+        elif args.interactive:
+            mode = "interactive"
+            print("请输入您的问题（输入'q'结束）：")
+        else:
+            parser.print_help()
+            exit(1)
 
     # 初始化配置和模型
     config, diary_file_path, plan_file_path, models_config, custom_model = init_config()

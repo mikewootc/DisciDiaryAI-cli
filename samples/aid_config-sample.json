@@ -1,7 +1,7 @@
 {
-    "model_selection": "qwen",
+    "model_selection": "deepseek",
     "custom_model": {
-        "name": "ollama",
+        "selection": "ollama",
         "model_name": "qwen3:8b",
         "model_api_url": "http://localhost:11434"
     },

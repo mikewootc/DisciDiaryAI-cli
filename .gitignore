@@ -210,3 +210,5 @@ __marimo__/
 aid_config.json
 .aid/
 d.sh
+doc/ailocal
+*.bak

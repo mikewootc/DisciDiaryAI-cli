@@ -7,22 +7,15 @@ import email
 from email.header import decode_header
 from email.mime.text import MIMEText
 import smtplib
-from dotenv import load_dotenv
+from dotenv import dotenv_values
 from langchain.tools import tool
 from langchain.tools import tool, ToolRuntime
 from langchain.messages import ToolMessage
 from langgraph.types import Command
 from utils import logger
 
-load_dotenv()
+env_vars = dotenv_values(".env")
 
-
-EMAIL_SMTP_SERVER = os.getenv('EMAIL_SMTP_SERVER')
-EMAIL_SMTP_PORT = int(os.getenv('EMAIL_SMTP_PORT'))
-EMAIL_RECV_SERVER = os.getenv('EMAIL_RECV_SERVER')
-EMAIL_ACCOUNT=os.getenv('EMAIL_ACCOUNT')
-# EMAIL_PASSWORD=os.getenv('EMAIL_PASSWORD')
-EMAIL_RECEIVE_KEY = os.getenv('EMAIL_RECEIVE_KEY')
 EMAIL_ACCOUNT_PEER=os.getenv('EMAIL_ACCOUNT_PEER')
 
 @tool
@@ -372,11 +365,11 @@ def get_plan(runtime: ToolRuntime, date: str) -> str:
 #        # 2. 连接到邮件服务器
 #        # 添加缺失的命令
 #        imaplib.Commands['ID'] = ('AUTH')
-#        imap = imaplib.IMAP4_SSL(EMAIL_RECV_SERVER)
-#        logger.debug(f"##### Connected to IMAP server: {EMAIL_RECV_SERVER}")
+#        imap = imaplib.IMAP4_SSL(env_vars["EMAIL_RECV_SERVER"])
+#        logger.debug(f"##### Connected to IMAP server: {env_vars['EMAIL_RECV_SERVER']}")
 #        
 #        # 登录邮箱
-#        login_status, login_data = imap.login(EMAIL_ACCOUNT, EMAIL_RECEIVE_KEY)
+#        login_status, login_data = imap.login(env_vars["EMAIL_ACCOUNT"], env_vars["EMAIL_RECEIVE_KEY"])
 #        if login_status != 'OK':
 #            login_error = login_data[0].decode('utf-8') if login_data else "未知错误"
 #            logger.error(f"##### Failed to login: {login_error}")
@@ -556,13 +549,13 @@ def email_receive_diary_pop(runtime: ToolRuntime) -> str:
                 last_receive_time = None
         
         # 2. 连接到POP3服务器
-        pop = poplib.POP3_SSL(EMAIL_RECV_SERVER)
-        logger.debug(f"##### Connected to POP3 server: {EMAIL_RECV_SERVER}")
+        pop = poplib.POP3_SSL(env_vars["EMAIL_RECV_SERVER"])
+        logger.debug(f"##### Connected to POP3 server: {env_vars['EMAIL_RECV_SERVER']}")
         
         # 登录邮箱
         try:
-            pop.user(EMAIL_ACCOUNT)
-            pop.pass_(EMAIL_RECEIVE_KEY)
+            pop.user(env_vars["EMAIL_ACCOUNT"])
+            pop.pass_(env_vars["EMAIL_RECEIVE_KEY"])
         except poplib.error_proto as e:
             login_error = str(e)
             logger.error(f"##### Failed to login: {login_error}")
@@ -599,7 +592,7 @@ def email_receive_diary_pop(runtime: ToolRuntime) -> str:
             sender_email = from_.split("<")[-1].rstrip(">")
             
             # 只处理来自指定发件人的邮件
-            if sender_email != EMAIL_ACCOUNT_PEER:
+            if sender_email != env_vars["EMAIL_ACCOUNT_PEER"]:
                 continue
 
             # 获取邮件主题
@@ -697,10 +690,10 @@ def email_send_notification(runtime: ToolRuntime, subject: str, body: str) -> st
     """
     try:
         # 1. 配置SMTP服务器
-        smtp_server = EMAIL_SMTP_SERVER
-        smtp_port = EMAIL_SMTP_PORT
-        smtp_username = EMAIL_ACCOUNT
-        smtp_password = EMAIL_RECEIVE_KEY
+        smtp_server = env_vars["EMAIL_SMTP_SERVER"]
+        smtp_port = int(env_vars["EMAIL_SMTP_PORT"])
+        smtp_username = env_vars["EMAIL_ACCOUNT"]
+        smtp_password = env_vars["EMAIL_RECEIVE_KEY"]
 
         logger.debug(f"##### send notification email. enter.")
         # 2. 创建SMTP连接
@@ -711,6 +704,7 @@ def email_send_notification(runtime: ToolRuntime, subject: str, body: str) -> st
             logger.debug(f"##### Logged in OK")
 
             # 3. 构造邮件
+            EMAIL_ACCOUNT_PEER = env_vars["EMAIL_ACCOUNT_PEER"]
             msg = MIMEText(body, 'plain', 'utf-8')
             msg['Subject'] = subject
             msg['From'] = smtp_username
